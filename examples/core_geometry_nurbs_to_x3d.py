@@ -40,7 +40,7 @@ X3D_TEMPLATE = """<?xml version="1.0" encoding="UTF-8"?>
 </X3D>
 """
 
-base_shape = BRepPrimAPI_MakeTorus(30, 10).Shape()
+base_shape = BRepPrimAPI_MakeTorus(3, 1).Shape()
 
 # conversion to a nurbs representation
 nurbs_converter = BRepBuilderAPI_NurbsConvert(base_shape, True)
@@ -48,8 +48,8 @@ nurbs_converter = BRepBuilderAPI_NurbsConvert(base_shape, True)
 converted_shape = nurbs_converter.Shape()
 
 # now, all edges should be BSpline curves and surfaces BSpline surfaces
-# see https://www.opencascade.com/doc/occt-7.4.0/refman/html/class_b_rep_builder_a_p_i___nurbs_convert.html#details
 
+# https://castle-engine.io/x3d_implementation_nurbs.php#section_homogeneous_coordinates
 expl = TopologyExplorer(converted_shape)
 
 nurbs_node_str = ""
@@ -75,9 +75,7 @@ for face in expl.faces():
 
     nb_u_poles = bsrf.NbUPoles()
     nb_u_knots = bsrf.NbUKnots()
-    print(nb_u_knots)
-    print(nb_u_poles)
-    print(u_order)
+
     nb_v_poles = bsrf.NbVPoles()
     nb_v_knots = bsrf.NbVKnots()
     
@@ -128,7 +126,13 @@ for face in expl.faces():
         for ip in range(nb_v_poles):
             for jp in range(nb_u_poles):
                 p = bsrf.Pole(jp + 1, ip + 1)
-                nurbs_node_str += "%g %g %g, " % (p.X(), p.Y(), p.Z())
+                # note: x3d need preweighted control points
+                # see https://www.opencascade.com/doc/occt-7.4.0/refman/html/class_b_rep_builder_a_p_i___nurbs_convert.html#details
+                w = bsrf.Weight(jp + 1, ip + 1)
+                p_x = p.X() * w
+                p_y = p.Y() * w
+                p_z = p.Z() * w
+                nurbs_node_str += "%g %g %g, " % (p_x, p_y, p_z)
         nurbs_node_str +="'/>"
 
     nurbs_node_str += "</NurbsPatchSurface></Shape>\n"
