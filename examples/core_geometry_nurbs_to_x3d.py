@@ -1,4 +1,5 @@
 ##Copyright 2020 Thomas Paviot (tpaviot@gmail.com)
+##and Andreas Plesch (gh id @andreasplesch)
 ##
 ##This file is part of pythonOCC.
 ##
@@ -64,58 +65,70 @@ for face in expl.faces():
         raise AssertionError("the face was not converted to a GeomAbs_BSplineSurface")
     # get the nurbs
     bsrf = surf.BSpline()
-    print(bsrf.IsUPeriodic())
-    print(bsrf.IsVPeriodic())
+    # x3d does not have periodic nurbs
     bsrf.SetUNotPeriodic()
     bsrf.SetVNotPeriodic()
+    # bspline surface properties
+    # order = degree + 1
+    u_order = bsrf.UDegree() + 1
+    v_order = bsrf.VDegree() + 1
 
+    nb_u_poles = bsrf.NbUPoles()
+    nb_u_knots = bsrf.NbUKnots()
+    print(nb_u_knots)
+    print(nb_u_poles)
+    print(u_order)
+    nb_v_poles = bsrf.NbVPoles()
+    nb_v_knots = bsrf.NbVKnots()
     
     # fill in the x3d template with nurbs information
     nurbs_node_str = "<Shape>"
-    nurbs_node_str += "<Appearance><Material></Material></Appearance>\n"
+    nurbs_node_str += "<Appearance>\n<Material diffuseColor='0.760784 0.843137 0.196078' shininess='0.25' specularColor='0.9 0.9 0.9'/></Appearance>\n"
     nurbs_node_str += "<NurbsPatchSurface DEF='nurbs_%i' solid='false' " % face_idx
-    nurbs_node_str += 'uDimension="%i" uOrder="%i" ' % (bsrf.NbUPoles(), bsrf.UDegree()+1)
-    nurbs_node_str += 'vDimension="%i" vOrder="%i" ' % (bsrf.NbVPoles(), bsrf.VDegree()+1)
+
+    if bsrf.IsVClosed():
+        nurbs_node_str += "vClosed='true' "
+    else:
+        nurbs_node_str += "vClosed='false' "
+    if bsrf.IsUClosed():
+        nurbs_node_str += "uClosed='true' "
+    else:
+        nurbs_node_str += "uClosed='false' "
+
+    nurbs_node_str += "uDimension='%i' uOrder='%i' " % (nb_u_poles, u_order)
+    nurbs_node_str += "vDimension='%i' vOrder='%i' " % (nb_v_poles, v_order)
+
+    # knots vector
     nurbs_node_str += "uKnot='"
-    uknots = bsrf.UKnots()
-    for i in range(bsrf.NbUKnots()):
-# AP: repeat knots as necessary
-        m=bsrf.UMultiplicity(i+1)
-        nurbs_node_str += ("%g " % uknots.Value(i + 1)) * m
+
+    for iu in range(nb_u_knots):
+        mu = bsrf.UMultiplicity(iu + 1) # repeat u knots as necessary
+        nurbs_node_str += ("%g " % bsrf.UKnot(iu + 1)) * mu
     nurbs_node_str +="' "
 
     nurbs_node_str += "vKnot='"
-    vknots = bsrf.VKnots()
-    for i in range(bsrf.NbVKnots()):
-        m=bsrf.VMultiplicity(i+1)
-        nurbs_node_str += ("%g " % vknots.Value(i + 1)) * m
+    for iv in range(nb_v_knots):
+        mv = bsrf.VMultiplicity(iv + 1) # repeat v knots as necessary
+        nurbs_node_str += ("%g " % bsrf.VKnot(iv + 1)) * mv
     nurbs_node_str +="' "
 
-    weights = bsrf.Weights()
     # weights can be None
-    if weights is not None:
+    if bsrf.Weights() is not None:
         nurbs_node_str += "weight='"
-# weight is per pole
-# x3d has u as fast dim. in the grid
-        for i in range(bsrf.NbVPoles()):
-            for j in range(bsrf.NbUPoles()):
-                nurbs_node_str +="%g " % bsrf.Weight(j+1, i+1) #weights.Value(j + 1, i + 1)
+        for iw in range(nb_v_poles):
+            for jw in range(nb_u_poles):
+                nurbs_node_str +="%g " % bsrf.Weight(jw + 1, iw + 1)
         nurbs_node_str +="' "
-
-    # weights can be None
-#     if weights is None:
 
     nurbs_node_str += "containerField='geometry'>\n"
     # the control points
     nurbs_node_str += "<Coordinate containerField='controlPoint' point='"
     # control points (aka poles), as a 2d array
-    poles = bsrf.Poles()
-    # weights can be None
-    if poles is not None:
-        for i in range(bsrf.NbVPoles()):
-            for j in range(bsrf.NbUPoles()):
-                p = bsrf.Pole(j + 1, i + 1) #poles.Value(j + 1, i + 1)
-                nurbs_node_str += "%g %g %g " % (p.X(), p.Y(), p.Z())
+    if bsrf.Poles() is not None:
+        for ip in range(nb_v_poles):
+            for jp in range(nb_u_poles):
+                p = bsrf.Pole(jp + 1, ip + 1)
+                nurbs_node_str += "%g %g %g, " % (p.X(), p.Y(), p.Z())
         nurbs_node_str +="'/>"
 
     nurbs_node_str += "</NurbsPatchSurface></Shape>\n"
